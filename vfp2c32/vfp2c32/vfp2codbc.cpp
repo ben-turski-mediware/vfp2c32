@@ -450,6 +450,7 @@ void _fastcall SQLExecEx(ParamBlk *parm)
 	DoubleValue vRowCount(0.0, 0);
 	BOOL bAbort = FALSE;
 	bool prepared = PCount() == 1;
+	int nCursorCount = 0;
 	int nErrorNo = VFP2C_Init_Odbc();
 	if (nErrorNo)
 		goto ErrorOut;
@@ -576,6 +577,8 @@ SQLResultSetProcessing:
 		ZeroMemory(pStmt->pColumnData,pStmt->nNoOfCols * sizeof(SQLCOLUMNDATA));
 		// read total rows found (if not supported it'll be -1/0 depending on driver in use)
 		SQLRowCount(pStmt->hStmt,&pStmt->nRowsTotal);
+		
+		nCursorCount++; // Increment with each new cursor
 	}
 	else
 	{
@@ -584,6 +587,8 @@ SQLResultSetProcessing:
 		{
 			SQLLEN nRowCount;
 			nApiRet = SQLRowCount(pStmt->hStmt,&nRowCount);
+			vRowCount.ev_long = nRowCount;
+
 			if (nApiRet == SQL_ERROR)
 			{
 				SafeODBCStmtError("SQLRowCount", pStmt->hStmt);
@@ -618,12 +623,16 @@ SQLResultSetProcessing:
 	{
 		/* if a cursorname is not passed for the resultset
 		   generate a default cursorname */
-		if (!pStmt->pCursorNames || !GetWordNumN(pStmt->pCursorName, pStmt->pCursorNames,',',pStmt->nResultset,VFP2C_VFP_MAX_CURSOR_NAME))
+		if (!pStmt->pCursorNames || !GetWordNumN(pStmt->pCursorName, pStmt->pCursorNames,',',nCursorCount,VFP2C_VFP_MAX_CURSOR_NAME))
 		{
-			if (pStmt->nResultset == 1)
+			if (nCursorCount == 1)
 				strcpy(pStmt->pCursorName,"sqlresult");
-			else
-				sprintfex(pStmt->pCursorName,"sqlresult%I",pStmt->nResultset);
+			{
+				if (strlen(pStmt->pCursorName) == 0)
+					sprintfex(pStmt->pCursorName,"%S%I",pStmt->pCursorNames,nCursorCount - 1);
+				else
+					sprintfex(pStmt->pCursorName,"sqlresult%I",pStmt->nResultset);
+			}
 		}
 		else
 			Alltrim(pStmt->pCursorName);
@@ -3050,11 +3059,28 @@ int _stdcall SQLCreateCursor(LPSQLSTATEMENT pStmt, char *pCursorName)
 			nErrorNo = E_APIERROR;
 			goto ErrorOut;
 		}
-		else if (lpCS->aVFPType == 'B' && lpCS->nSize > 18)
+		// CUSTOM: Commented out schema check - ignoring errors when trying to map certain column types
+		/*else if (lpCS->aVFPType == 'B' && lpCS->nSize > 18)
 		{
 			SaveCustomErrorEx("SqlExecEx", "Invalid cursor schema for field '%S': length %I", 0, lpCS->aColName, lpCS->nSize);
 			nErrorNo = E_APIERROR;
 			goto ErrorOut;
+		}*/
+
+		// Prevent errors caused by duplicate column names
+		if (nColNo > 1)
+		{
+			LPSQLCOLUMNDATA lpCheck = pStmt->pColumnData;
+			for (int i = 1; i < nColNo; i++)
+			{
+				if (stricmp((char*)lpCS->aColName, (char*)lpCheck->aColName) == 0)
+				{
+					// Append column position to the column name to prevent issues with duplicate column names in VFP
+					sprintfex((char*)lpCS->aColName,"%S_%I",(char*)lpCS->aColName,nColNo);
+					break;
+				}
+				lpCheck++;
+			}
 		}
 
 		lArrayLoc.l_sub1++;
