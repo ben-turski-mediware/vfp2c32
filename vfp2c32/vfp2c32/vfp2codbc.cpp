@@ -1051,14 +1051,16 @@ LPSQLSTATEMENT _stdcall SQLAllocStatement(ParamBlk *parm, int *nErrorNo, bool pr
 		pStmt->hConn = (SQLHDBC)vConHandle.ev_long;
 
 
-	if (CFoxVersion::MajorVersion() >= 9) 
+	// CUSTOM: Removed version/cursorgetprop evaluations and always enable varchar mapping
+	/*if (CFoxVersion::MajorVersion() >= 9) 
 	{
 		if (*nErrorNo = _Evaluate(&vMapVarchar, "CURSORGETPROP('MapVarchar', 0)"))
 			return pStmt;
 		pStmt->bMapVarchar = vMapVarchar.ev_length > 0;
 	}
 	else
-		pStmt->bMapVarchar = false;
+		pStmt->bMapVarchar = false;*/
+	pStmt->bMapVarchar = true;
 
 	// 1.3 - allocate statement handle on connection
 	if (SQLAllocHandle(SQL_HANDLE_STMT,pStmt->hConn,&pStmt->hStmt) == SQL_ERROR)
