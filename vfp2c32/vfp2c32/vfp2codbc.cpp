@@ -37,7 +37,7 @@ void _stdcall SaveODBCError(char *pFunction, SQLHANDLE hHandle, SQLSMALLINT nHan
 			nErrorNum++;
 			pError++;
 		}
-	} while (nApiRet == SQL_SUCCESS);
+	} while (nApiRet == SQL_SUCCESS && nErrorNum < VFP2C_MAX_ERRORS);
 
 	tls.ErrorCount = nErrorNum - 1;
 }
@@ -49,7 +49,7 @@ void _stdcall SaveODBCInstallerError(char *pFunction)
 	WORD nErrorLength, nError = 1;
 	tls.ErrorCount = 0;
 
-	while (nError <= 8 && 
+	while (nError <= VFP2C_MAX_ERRORS && 
 		SQLInstallerError(nError++, &pError->nErrorNo, pError->aErrorMessage, VFP2C_ERROR_MESSAGE_LEN, &nErrorLength) == SQL_SUCCESS)
 	{
 		pError->nErrorType = VFP2C_ERRORTYPE_WIN32; // we don't need a SQLState field here 
