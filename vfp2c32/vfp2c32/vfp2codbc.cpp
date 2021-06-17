@@ -4065,6 +4065,7 @@ unsigned int _stdcall SQLExtractInfo(char *pMessage, unsigned int nMsgLen)
 int _stdcall SQLFetchToCursor(LPSQLSTATEMENT pStmt, BOOL *bAborted)
 {
 	SQLRETURN nApiRet;
+	char aExeBuffer[VFP2C_MAX_FUNCTIONBUFFER];
 	int nRowsFetched = 0, nErrorNo;
 
 	if (pStmt->pCallbackCmd)
@@ -4114,6 +4115,12 @@ int _stdcall SQLFetchToCursor(LPSQLSTATEMENT pStmt, BOOL *bAborted)
 		SafeODBCStmtError("SQLFetch", pStmt->hStmt);
 		return E_APIERROR;
 	}
+
+	// CUSTOM: Default the cursor buffering mode to optimistic row-level to match SqlExec
+	sprintfex(aExeBuffer, "CURSORSETPROP(\"Buffering\", 3, \"%S\")", pStmt->pCursorName);
+	if (nErrorNo = _Execute(aExeBuffer))
+		return nErrorNo;
+
 	return 0;
 }
 
